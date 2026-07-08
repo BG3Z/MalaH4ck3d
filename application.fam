@@ -1,0 +1,10 @@
+App(
+    appid="consorcio_malaga",
+    name="MalaH4ck3d",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="consorcio_malaga_app",
+    stack_size=2048,
+    fap_category="NFC",
+    fap_icon="images/calavera.png",
+    fap_icon_assets="images"
+)
