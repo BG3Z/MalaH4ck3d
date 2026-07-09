@@ -54,5 +54,10 @@ ufbt launch
 
 ## Licencia
 
-Este repositorio no incluye una licencia explícita. Añade una licencia si quieres compartirlo públicamente.
+Este proyecto es propiedad intelectual de `@bg3z`.
+Se distribuye bajo una licencia personal y no comercial asignada por su autor.
+
+<div style="background: rgba(255, 0, 0, 0.12); border: 1px solid rgba(255, 0, 0, 0.35); border-radius: 10px; padding: 16px; color: #7f0000;">
+<strong>Disclaimer:</strong> Este proyecto se proporciona con fines educativos y de demostración. No se ofrece ninguna garantía. El uso de este software es bajo su propia responsabilidad. No se debe emplear para actividades ilícitas ni para vulnerar sistemas.
+</div>
 
