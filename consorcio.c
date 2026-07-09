@@ -37,11 +37,11 @@ typedef struct {
 } AppState;
 
 static char* const menu_labels[] = {
-    "1. Check Balance",
-    "2. Insert your KEY",
-    "3. Top up Balance",
-    "4. ! Disclaimer",
-    "5. ? Credits",
+    "Check Balance",
+    "Insert your KEY",
+    "Top up Balance",
+    "! Disclaimer",
+    "? Credits",
 };
 
 static uint8_t hex_to_nibble(char c) {
@@ -168,20 +168,32 @@ static void draw_menu(Canvas* canvas, AppState* state) {
         start = state->menu_index - 2;
     }
 
+    /* Use larger vertical spacing and taller frames so text fits inside boxes */
     for(uint8_t i = 0; i < 5; i++) {
         int8_t idx = start + i;
         if(idx >= 5) break;
 
-        uint8_t y = 30 + (i * 10);
+        uint8_t y = 32 + (i * 14);
+        /* Draw a thin rounded outline rectangle around each menu item */
+        /* x, y, width, height, radius */
+        canvas_draw_rframe(canvas, 6, y - 10, 120, 14, 3);
+
         if(idx == state->menu_index) {
-            canvas_draw_str(canvas, 8, y, ">");
-            canvas_draw_str(canvas, 16, y, menu_labels[idx]);
+            canvas_draw_str(canvas, 10, y, ">");
+        }
+
+        /* For the first three items show number + label; last two show full label */
+        if(idx < 3) {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%d. %s", idx + 1, menu_labels[idx]);
+            canvas_draw_str(canvas, 26, y, buf);
         } else {
-            canvas_draw_str(canvas, 16, y, menu_labels[idx]);
+            canvas_draw_str(canvas, 26, y, menu_labels[idx]);
         }
     }
 
-    canvas_draw_str(canvas, 5, 84, "OK select | BACK exit");
+    /* Move help text toward bottom to avoid overlap */
+    canvas_draw_str(canvas, 5, 110, "OK select | BACK exit");
 }
 
 static void draw_balance(Canvas* canvas, AppState* state) {
