@@ -146,15 +146,70 @@ static bool write_value_blocks(Nfc* nfc, MfClassicKey* key, uint32_t cents) {
 static void draw_splash(Canvas* canvas, AppState* state) {
     canvas_clear(canvas);
     canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 10, 15, "MalaH4ck3d");
-    canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str(canvas, 10, 34, "Booting NFC tools...");
+    /* Draw only title */
+    const char* title = "MalaH4ck3d";
+    int title_w = (int)canvas_string_width(canvas, title);
+    int cw = (int)canvas_width(canvas);
+    int tx = (cw - title_w) / 2;
+    if(tx < 0) tx = 0;
+    canvas_draw_str(canvas, tx, 15, title);
 
+    /* Train animation across ~5 seconds and smoke (kept) */
     uint32_t elapsed = furi_get_tick() - state->splash_started;
-    uint8_t frame = (elapsed / 250) % 4;
-    const char* spinner = "|/-\\";
-    canvas_draw_str(canvas, 10, 52, "Loading");
-    canvas_draw_str(canvas, 58, 52, &spinner[frame]);
+
+    /* Smoke frames for three clouds (small -> medium -> large) */
+    const char* smoke_small[] = {".", "o", "O", "o"};
+    const char* smoke_med[] = {"(.)", "(o)", "(O)", "(o)"};
+    const char* smoke_big[] = {"(  )", "( . )", "(  O  )", "( . )"};
+    const size_t smoke_frames = 4;
+    const char* s1 = smoke_small[(elapsed / 200) % smoke_frames];
+    const char* s2 = smoke_med[(elapsed / 180) % smoke_frames];
+    const char* s3 = smoke_big[(elapsed / 160) % smoke_frames];
+
+    /* User-provided ASCII train (cabina + vagon) - rails are drawn later */
+    const char* line1 = "   ~~~~ ____   |~~~~~~~~~~~~~|";
+    const char* line2 = "  Y_,___|[]|   |                    |";
+    const char* line3 = " {|_|_|_|PU|_,_|_____________|";
+    const char* line4 = "//oo---OO=OO     OOO     OOO";
+
+    int engine_w = (int)strlen(line3);
+    int train_w = engine_w; /* only engine width now */
+
+    int total_range = cw + train_w + 8;
+    int x = cw - (int)((elapsed * (uint32_t)total_range) / 5000);
+
+    /* Use primary font */
+    canvas_set_font(canvas, FontPrimary);
+
+    /* Position the ASCII train (you can tweak these Y offsets) */
+    int eng_x = x;
+    int eng_y_top = 30;
+    int eng_y_tall = 38;
+    int eng_y_mid = 46;
+
+    /* Draw the ASCII train lines */
+    if(eng_x + engine_w > 0 && eng_x < cw) {
+        canvas_draw_str(canvas, eng_x, eng_y_top, line1);
+        canvas_draw_str(canvas, eng_x, eng_y_tall, line2);
+        canvas_draw_str(canvas, eng_x, eng_y_mid, line3);
+        canvas_draw_str(canvas, eng_x, eng_y_mid + 8, line4);
+    }
+
+    /* Compute smoke origin so it appears to come from the cabin (approx) */
+    int smoke_base_x = eng_x + 6;
+    int smoke_y1 = eng_y_mid - 16; /* small cloud just above stack */
+    int smoke_y2 = eng_y_mid - 22; /* medium */
+    int smoke_y3 = eng_y_mid - 28; /* large */
+
+    /* Draw smoke clouds (small closest to stack, larger further up) */
+    if(smoke_base_x + 2 > 0 && smoke_base_x < cw) canvas_draw_str(canvas, smoke_base_x, smoke_y1, s1);
+    if(smoke_base_x + 0 > 0 && smoke_base_x < cw) canvas_draw_str(canvas, smoke_base_x, smoke_y2, s2);
+    if(smoke_base_x - 2 > 0 && smoke_base_x < cw) canvas_draw_str(canvas, smoke_base_x - 2, smoke_y3, s3);
+
+    /* Draw rails at a visible position below the train */
+    int rail_y = eng_y_mid + 12;
+    canvas_draw_line(canvas, 0, rail_y, cw - 1, rail_y);
+    canvas_draw_line(canvas, 0, rail_y + 3, cw - 1, rail_y + 3);
 }
 
 static void draw_menu(Canvas* canvas, AppState* state) {
@@ -168,13 +223,12 @@ static void draw_menu(Canvas* canvas, AppState* state) {
         start = state->menu_index - 2;
     }
 
-    /* Use larger vertical spacing and taller frames so text fits inside boxes */
+    /* Restore original menu spacing so labels are readable */
     for(uint8_t i = 0; i < 5; i++) {
         int8_t idx = start + i;
         if(idx >= 5) break;
 
         uint8_t y = 32 + (i * 14);
-        /* Draw a thin rounded outline rectangle around each menu item */
         /* x, y, width, height, radius */
         canvas_draw_rframe(canvas, 6, y - 10, 120, 14, 3);
 
@@ -182,7 +236,6 @@ static void draw_menu(Canvas* canvas, AppState* state) {
             canvas_draw_str(canvas, 10, y, ">");
         }
 
-        /* For the first three items show number + label; last two show full label */
         if(idx < 3) {
             char buf[64];
             snprintf(buf, sizeof(buf), "%d. %s", idx + 1, menu_labels[idx]);
@@ -191,9 +244,6 @@ static void draw_menu(Canvas* canvas, AppState* state) {
             canvas_draw_str(canvas, 26, y, menu_labels[idx]);
         }
     }
-
-    /* Move help text toward bottom to avoid overlap */
-    canvas_draw_str(canvas, 5, 110, "OK select | BACK exit");
 }
 
 static void draw_balance(Canvas* canvas, AppState* state) {
@@ -201,18 +251,20 @@ static void draw_balance(Canvas* canvas, AppState* state) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 5, 15, "Check Balance");
     canvas_set_font(canvas, FontSecondary);
+    /* Larger outline for balance info (section 1) */
+    canvas_draw_rframe(canvas, 3, 24, 122, 44, 4);
 
     if(state->tarjeta_leida) {
-        canvas_draw_str(canvas, 5, 35, "Card detected");
+        canvas_draw_str(canvas, 8, 36, "Card detected");
         canvas_set_font(canvas, FontBigNumbers);
-        canvas_draw_str(canvas, 5, 54, state->saldo_texto);
+        canvas_draw_str(canvas, 8, 54, state->saldo_texto);
         canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str(canvas, 5 + canvas_string_width(canvas, state->saldo_texto) + 4, 54, "€");
+        canvas_draw_str(canvas, 8 + canvas_string_width(canvas, state->saldo_texto) + 6, 54, "€");
         canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str(canvas, 5, 80, "BACK to return");
+        canvas_draw_str(canvas, 8, 74, "BACK to return");
     } else {
-        canvas_draw_str(canvas, 5, 35, "Approach the card");
-        canvas_draw_str(canvas, 5, 52, "Reading value block...");
+        canvas_draw_str(canvas, 8, 36, "Approach the card");
+        canvas_draw_str(canvas, 8, 54, "Reading value block...");
     }
 }
 
@@ -221,10 +273,12 @@ static void draw_key_entry(Canvas* canvas, AppState* state) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 5, 15, "Insert your KEY");
     canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str(canvas, 5, 35, "HEX 6 bytes");
-    canvas_draw_str(canvas, 5, 50, state->key_hex);
-    canvas_draw_str(canvas, 5 + (state->key_cursor * 6), 62, "^");
-    canvas_draw_str(canvas, 5, 76, "UP/DOWN change | OK save");
+    /* Larger outline for key entry (section 2) */
+    canvas_draw_rframe(canvas, 3, 24, 122, 44, 4);
+    canvas_draw_str(canvas, 8, 36, "HEX 6 bytes");
+    canvas_draw_str(canvas, 8, 54, state->key_hex);
+    canvas_draw_str(canvas, 8 + (state->key_cursor * 6), 64, "^");
+    canvas_draw_str(canvas, 8, 74, "UP/DOWN change | OK save");
 }
 
 static void draw_amount_entry(Canvas* canvas, AppState* state) {
@@ -232,10 +286,23 @@ static void draw_amount_entry(Canvas* canvas, AppState* state) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 5, 15, "Top up Balance");
     canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str(canvas, 5, 35, "Amount in EUR");
-    canvas_draw_str(canvas, 5, 50, state->amount_buf);
-    canvas_draw_str(canvas, 5 + (state->amount_cursor * 6), 62, "^");
-    canvas_draw_str(canvas, 5, 76, "UP/DOWN change | OK confirm");
+    /* Amount entry: show "EUR {number}" and close arrows; remove UP/DOWN text */
+    canvas_draw_rframe(canvas, 4, 26, 120, 34, 3);
+    /* Compose label and amount on the same line */
+    char amt_buf[64];
+    snprintf(amt_buf, sizeof(amt_buf), "EUR %s", state->amount_buf);
+    int amt_x = 8;
+    int amt_y = 42; /* moved down to fit inside outline */
+    canvas_draw_str(canvas, amt_x, amt_y, amt_buf);
+    /* Compute width and draw tight arrows right next to the amount */
+    int width = (int)canvas_string_width(canvas, amt_buf);
+    int arrow_x = amt_x + width + 2; /* small gap */
+    /* up arrow (closer vertically) */
+    canvas_draw_str(canvas, arrow_x, amt_y - 3, "^");
+    /* down arrow (closer vertically) */
+    canvas_draw_str(canvas, arrow_x, amt_y + 3, "v");
+    /* Keep OK confirm at bottom */
+    canvas_draw_str(canvas, 8, 58, "OK confirm");
 }
 
 static void draw_status(Canvas* canvas, AppState* state) {
@@ -243,8 +310,10 @@ static void draw_status(Canvas* canvas, AppState* state) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 5, 15, "Status");
     canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str(canvas, 5, 36, state->status_text);
-    canvas_draw_str(canvas, 5, 76, "BACK to menu");
+    /* Compact outline for status */
+    canvas_draw_rframe(canvas, 4, 26, 120, 34, 3);
+    canvas_draw_str(canvas, 8, 34, state->status_text);
+    canvas_draw_str(canvas, 8, 58, "BACK to menu");
 }
 
 static void draw_disclaimer(Canvas* canvas, AppState* state) {
@@ -253,10 +322,12 @@ static void draw_disclaimer(Canvas* canvas, AppState* state) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 5, 15, "Disclaimer");
     canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str(canvas, 5, 35, "Educational purposes only.");
-    canvas_draw_str(canvas, 5, 48, "This project is for learning");
-    canvas_draw_str(canvas, 5, 61, "how these systems work.");
-    canvas_draw_str(canvas, 5, 76, "BACK to menu");
+    /* Larger outline for disclaimer */
+    canvas_draw_rframe(canvas, 3, 22, 122, 44, 4);
+    canvas_draw_str(canvas, 8, 34, "Educational purposes only.");
+    canvas_draw_str(canvas, 8, 48, "This project is for learning");
+    canvas_draw_str(canvas, 8, 60, "how these systems work.");
+    canvas_draw_str(canvas, 8, 74, "BACK to menu");
 }
 
 static void draw_credits(Canvas* canvas, AppState* state) {
@@ -265,9 +336,11 @@ static void draw_credits(Canvas* canvas, AppState* state) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 5, 15, "Credits");
     canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str(canvas, 5, 36, "Built by @bg3z");
-    canvas_draw_str(canvas, 5, 49, "on GitHub");
-    canvas_draw_str(canvas, 5, 76, "BACK to menu");
+    /* Compact outline for credits */
+    canvas_draw_rframe(canvas, 4, 26, 120, 34, 3);
+    canvas_draw_str(canvas, 8, 36, "Built by @bg3z");
+    canvas_draw_str(canvas, 8, 48, "on GitHub");
+    canvas_draw_str(canvas, 8, 58, "BACK to menu");
 }
 
 static void draw_callback(Canvas* canvas, void* ctx) {
@@ -429,32 +502,16 @@ int32_t consorcio_malaga_app(void* p) {
             } else if(state->screen == ScreenTopUpAmount) {
                 if(event.key == InputKeyBack) {
                     state->screen = ScreenMenu;
-                } else if(event.key == InputKeyLeft) {
-                    if(state->amount_cursor > 0) state->amount_cursor--;
-                } else if(event.key == InputKeyRight) {
-                    if(state->amount_cursor < strlen(state->amount_buf) - 1) state->amount_cursor++;
                 } else if(event.key == InputKeyUp) {
-                    if(state->amount_cursor >= strlen(state->amount_buf)) {
-                        state->amount_buf[strlen(state->amount_buf)] = '0';
-                        state->amount_buf[strlen(state->amount_buf) + 1] = '\0';
-                    }
-                    char* ch = &state->amount_buf[state->amount_cursor];
-                    if(*ch == '\0') *ch = '0';
-                    if(*ch >= '0' && *ch <= '9') {
-                        if(*ch == '9') *ch = '0';
-                        else (*ch)++;
-                    }
+                    /* Increment whole amount by 1, clamp to 100 */
+                    int euros = atoi(state->amount_buf);
+                    if(euros < 100) euros++;
+                    snprintf(state->amount_buf, sizeof(state->amount_buf), "%d", euros);
                 } else if(event.key == InputKeyDown) {
-                    if(state->amount_cursor >= strlen(state->amount_buf)) {
-                        state->amount_buf[strlen(state->amount_buf)] = '0';
-                        state->amount_buf[strlen(state->amount_buf) + 1] = '\0';
-                    }
-                    char* ch = &state->amount_buf[state->amount_cursor];
-                    if(*ch == '\0') *ch = '0';
-                    if(*ch >= '0' && *ch <= '9') {
-                        if(*ch == '0') *ch = '9';
-                        else (*ch)--;
-                    }
+                    /* Decrement whole amount by 1, min 0 */
+                    int euros = atoi(state->amount_buf);
+                    if(euros > 0) euros--;
+                    snprintf(state->amount_buf, sizeof(state->amount_buf), "%d", euros);
                 } else if(event.key == InputKeyOk) {
                     uint32_t cents = 0;
                     size_t len = strlen(state->amount_buf);
@@ -463,6 +520,7 @@ int32_t consorcio_malaga_app(void* p) {
                             cents = cents * 10 + (uint32_t)(state->amount_buf[i] - '0');
                         }
                     }
+                    if(cents > 100) cents = 100;
                     cents *= 100;
 
                     MfClassicKey key;
@@ -488,7 +546,7 @@ int32_t consorcio_malaga_app(void* p) {
             }
         }
 
-        if(state->screen == ScreenSplash && (furi_get_tick() - state->splash_started) > 3000) {
+        if(state->screen == ScreenSplash && (furi_get_tick() - state->splash_started) > 5000) {
             state->screen = ScreenMenu;
         }
 
